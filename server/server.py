@@ -1,65 +1,75 @@
-#!/usr/bin/env python
-
-import flask
-from flask import render_template, send_from_directory, Response, request
-#import connexion
-#import camera_controller
-
-import Amscope
-from camera import WebCamera, AmscopeCamera
-import os
-import time
-import cv2
-
-# Create the application instance
-#app = connexion.App(__name__, specification_dir='./')
-
-app = flask.Flask(__name__)
-
-# Read the swagger.yml file to configure the endpoints
-#app.add_api('swagger.yml')
 
 
-"""
-@app.route("/")
-def home():
-    return render_template('index.html')
+import asyncio
+from aiohttp import web
+import aiohttp_cors
+
+import socketio
+
+from camera_manager import CameraManager
+
+mgmt = CameraManager()
+
+sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins="*")
+app = web.Application()
+
+cors = aiohttp_cors.setup(app, defaults={
+    "*": aiohttp_cors.ResourceOptions(
+            allow_credentials=True,
+            expose_headers="*",
+            allow_headers="*",
+        )
+})
+
+sio.attach(app)
+
+@sio.event
+async def connect(sid, environ):
+    print('Client connected: %s' + str(sid) )
+    await sio.emit('response', {'data': 'Connected', 'count': 0}, room=sid)
 
 
-@app.route('/<path:path>')
-def send_root(path):
-    return send_from_directory('templates', path)
-"""
+@sio.event
+def disconnect(sid):
+    print('Client disconnected: %s' + str(sid) )
 
-def gen(camera):
-    # safely switch between active camera and stream 
-    camera.activate()
+
+
+
+async def index(request):
+    with open('app.html') as f:
+        return web.Response(text=f.read(), content_type='text/html')
+
+
+async def set_config(request):
+    print(await request.read())
+    return web.Response()
+
+
+async def add_device(request):
+    mgmt.new_devices.append(await request.json())
+    return web.Response()
+
+
+async def background_task():
+    count = 0
     while True:
-        frame = camera.get_frame()
-        frame = cv2.imencode('.jpg', frame)[1].tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-    camera.deactivate()
+        try:
+            mgmt.loop()
+        except AttributeError:
+            await sio.emit('response', {'data': "Error adding devices"})
+        await sio.emit('device_update', {'devices': mgmt.devices})
+        await sio.sleep(1)
+        count += 1
+        await sio.emit('response', {'data': 'Server Heartbeat: %d' % count})
 
 
-@app.route('/webcam/<deviceid>')
-def webcam_feed(deviceid):
-    name = request.args.get('name')
-    if not name:
-        name = deviceid
-    return Response(gen(WebCamera(int(deviceid), name)),
-                mimetype='multipart/x-mixed-replace; boundary=frame')
+cors.add(app.router.add_post('/config', set_config))
+cors.add(app.router.add_post('/add_device', add_device))
+app.router.add_get('/', index)
 
 
-@app.route('/amscope/<deviceid>')
-def amscope_feed(deviceid):
-    name = request.args.get('name')
-    if not name:
-        name = deviceid
-    return Response(gen(AmscopeCamera(int(deviceid), name)),
-                mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
-if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=os.environ.get('PORT', 5000), debug=True)
-
+if __name__ == '__main__':
+    sio.start_background_task(background_task)
+    web.run_app(app, port=3005)

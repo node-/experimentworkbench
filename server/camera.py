@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import cv2
-import Amscope
 import numpy
 
 class CameraError(Exception):
@@ -75,6 +74,7 @@ class AbstractCamera(object):
 class AmscopeCamera(AbstractCamera):
     """Camera class impl for the Amscope cameras, which have more camera settings than webcams."""
     def __init__(self, device, name, fullRes=False):
+        import Amscope
         self.rotation = 0
         self.device = device
         self.capture = None

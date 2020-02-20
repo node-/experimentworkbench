@@ -18,7 +18,10 @@ import ListItemText from '@material-ui/core/ListItemText'
 import IconButton from '@material-ui/core/IconButton'
 import Button from '@material-ui/core/Button'
 import { withStyles } from '@material-ui/core/styles'
+import socketIOClient from "socket.io-client";
+
 import './App.css';
+
 
 const styles = theme => ({
   image: {
@@ -37,13 +40,19 @@ const styles = theme => ({
     '&:hover': {
       backgroundColor: "#d3d3d3",
       cursor: "pointer"
-  }
+    } 
   }
 })
+
+
 
 class App extends React.PureComponent {
   state = {
     tab: 0,
+    tab_viewport: 0,
+    response: false,
+    connected: false,
+    endpoint: "http://127.0.0.1:3005",
     newDevice: {
       id: "",
       name: "",
@@ -54,29 +63,40 @@ class App extends React.PureComponent {
     // global config
     intervalTime: "",
     outputPath: "",
-    devices: [{
-              id : "0",
-              name : "front",
-              type : "webcam"
-            },
-            {
-              id : "1",
-              name : "back",
-              type : "webcam"
-            },
-          ],
-    currentlySelectedDeviceId: "0",
+    devices: [],
+    currentlySelectedDeviceId: false,
   }
 
-  handleRemoveDevice = device => _ =>  {
-    console.log(device)
+  componentDidMount() {
+    const { endpoint, devices } = this.state;
+    const socket = socketIOClient(endpoint);
+
+    socket.on("response", data => {
+      console.log(data);
+      console.log(devices);
+      this.setState({response: data});
+    });
+
+    socket.on("device_update", data => this.setState({devices: data.devices}))
+    //socket.on("device_update", data => console.log(data.devices));
+    socket.on('connect', () => {
+      this.setState({connected: socket.connected})
+    });
+
+    socket.on('disconnect', () => {
+      this.setState({connected: socket.connected})
+    });
+  }
+
+  handleRemoveDevice = (device) => {
+    console.log(device);
   }
 
   handleConfigSubmit = () => {
     this.setState({
       submitting: true
     })
-    axios.post('http://localhost:5000/config', 
+    axios.post('http://localhost:3005/config', 
       {
         outputPath: this.state.outputPath,
         intervalTime: this.state.intervalTime,
@@ -135,7 +155,7 @@ class App extends React.PureComponent {
   }
 
   handleAddNewDevice = () => {
-      axios.post('http://localhost:5000/add_device', this.state.newDevice).then(response => {
+      axios.post('http://localhost:3005/add_device', this.state.newDevice).then(response => {
         console.log(response.data)
         this.setState({
           submitting: false
@@ -147,10 +167,7 @@ class App extends React.PureComponent {
           submitting: false
       })
     })
-    let deviceArray = this.state.devices
-    deviceArray.push(this.state.newDevice)
     this.setState({
-      devices: deviceArray, 
       newDevice: {
         id: "",
         name: "",
@@ -254,12 +271,21 @@ class App extends React.PureComponent {
     var currentDevice = this.state.devices.filter(item => {
       return item.id === this.state.currentlySelectedDeviceId
     })[0]
+    if (!currentDevice) return;
     return (
       <div className={classes.imageWrapper}>
           <img 
             className={classes.image}
             alt="cam2" src={`http://localhost:5000/${currentDevice.type}/${currentDevice.id}`} /> 
       </div>
+    )
+  }
+
+  renderDeviceConfig = () => {
+    return (
+      <Paper square>
+
+      </Paper>
     )
   }
 
@@ -280,6 +306,7 @@ class App extends React.PureComponent {
               color="primary" variant="contained">Add</Button>
           </div>
         </Paper>
+        {this.renderDeviceConfig()}
       </div>
     )
   }
@@ -288,6 +315,36 @@ class App extends React.PureComponent {
     this.setState({
       tab: newValue
     })
+  }
+
+  handleViewportChange = (_, newValue) => {
+    this.setState({
+      tab_viewport: newValue
+    })
+  }
+
+  renderViewportSelect = () => {
+    const { tab_viewport } = this.state
+    return (
+      <div>
+        <Tabs
+          variant="fullWidth"
+          value={tab_viewport}
+          onChange={this.handleViewportChange}
+          indicatorColor="primary"
+          textColor="primary"
+        >
+          <Tab label="Config 1" />
+          <Tab label="Config 2" />
+        </Tabs>
+        {
+          tab_viewport === 0 && this.renderVideo()
+        }
+        {
+          tab_viewport === 1
+        }
+      </div>
+    )
   }
 
   renderMenu = () => {
@@ -314,6 +371,19 @@ class App extends React.PureComponent {
     )
   }
 
+  renderConnectionInfo = () => {
+    const { connected } = this.state;
+    const text = connected ? "Connected" : "Not Connected";
+    const color = connected ? "primary" : "secondary";
+    return (
+      <Paper square>
+        <center>
+          <Button color={color} variant="contained">{text}</Button>
+        </center>
+      </Paper>
+    )
+  }
+
   render = () => {
     // const { classes } = this.props
     return (
@@ -321,10 +391,12 @@ class App extends React.PureComponent {
         <header className="App-header">
           <Grid container>
             <Grid item xs={12} md={8}>
+              {this.renderViewportSelect()}
               {this.renderVideo()}
             </Grid>
             <Grid item xs={12} md={4}>
               {this.renderMenu()}
+              {this.renderConnectionInfo()}
             </Grid>
           </Grid>
         </header>
