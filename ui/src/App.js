@@ -18,6 +18,8 @@ import ListItemText from '@material-ui/core/ListItemText'
 import IconButton from '@material-ui/core/IconButton'
 import Button from '@material-ui/core/Button'
 import { withStyles } from '@material-ui/core/styles'
+import { Slider } from '@material-ui/core';
+
 import socketIOClient from "socket.io-client";
 
 import './App.css';
@@ -63,19 +65,25 @@ class App extends React.PureComponent {
     // global config
     intervalTime: "",
     outputPath: "",
+    frame: false,
+    new_frame: false,
     devices: [],
     currentlySelectedDeviceId: false,
   }
 
   componentDidMount() {
-    const { endpoint, devices } = this.state;
+    const { endpoint } = this.state;
     const socket = socketIOClient(endpoint);
 
     socket.on("response", data => {
-      console.log(data);
-      console.log(devices);
       this.setState({response: data});
+      console.log(data);
     });
+
+    socket.on("frame", data => {
+      this.setState({new_frame: true});
+      this.renderVideo();
+    })
 
     socket.on("device_update", data => this.setState({devices: data.devices}))
     //socket.on("device_update", data => console.log(data.devices));
@@ -89,7 +97,7 @@ class App extends React.PureComponent {
   }
 
   handleRemoveDevice = (device) => {
-    console.log(device);
+    //console.log(device);
   }
 
   handleConfigSubmit = () => {
@@ -156,7 +164,7 @@ class App extends React.PureComponent {
 
   handleAddNewDevice = () => {
       axios.post('http://localhost:3005/add_device', this.state.newDevice).then(response => {
-        console.log(response.data)
+        //console.log(response.data)
         this.setState({
           submitting: false
         })
@@ -268,24 +276,14 @@ class App extends React.PureComponent {
 
   renderVideo = () => {
     const { classes } = this.props
-    var currentDevice = this.state.devices.filter(item => {
-      return item.id === this.state.currentlySelectedDeviceId
-    })[0]
-    if (!currentDevice) return;
+    const { frame } = this.state
+    var image_url = "http://" + document.domain + ":3005/frame/" + this.state.currentlySelectedDeviceId + "?t=" + Date.now() 
     return (
       <div className={classes.imageWrapper}>
           <img 
             className={classes.image}
-            alt="cam2" src={`http://localhost:5000/${currentDevice.type}/${currentDevice.id}`} /> 
+            alt="cam" src={image_url} /> 
       </div>
-    )
-  }
-
-  renderDeviceConfig = () => {
-    return (
-      <Paper square>
-
-      </Paper>
     )
   }
 
@@ -306,7 +304,7 @@ class App extends React.PureComponent {
               color="primary" variant="contained">Add</Button>
           </div>
         </Paper>
-        {this.renderDeviceConfig()}
+        {this.renderCameraConfig()}
       </div>
     )
   }
@@ -334,8 +332,8 @@ class App extends React.PureComponent {
           indicatorColor="primary"
           textColor="primary"
         >
-          <Tab label="Config 1" />
-          <Tab label="Config 2" />
+          <Tab label="Viewport 0" />
+          <Tab label="Viewport 1" />
         </Tabs>
         {
           tab_viewport === 0 && this.renderVideo()
@@ -376,10 +374,63 @@ class App extends React.PureComponent {
     const text = connected ? "Connected" : "Not Connected";
     const color = connected ? "primary" : "secondary";
     return (
-      <Paper square>
-        <center>
+        <Grid item xs>
           <Button color={color} variant="contained">{text}</Button>
-        </center>
+        </Grid>
+    )
+  }
+
+  handleCamConfigChange = name => event => {
+
+  }
+
+  renderCameraConfig = () => {
+    const { classes } = this.props
+    const { currentlySelectedDeviceId } = this.state
+    var value = 0;
+
+    // todo: curry
+    // onChange={handleCamConfigChange("exposure")}
+
+    
+    return (
+      <Paper className={classes.configWrapper}>
+        <Grid item>
+          <Typography id="non-linear-slider" gutterBottom>
+            Exposure Time
+          </Typography>
+          <Slider 
+            value={value} 
+            aria-labelledby="continuous-slider" 
+          />
+
+          <Typography id="non-linear-slider" gutterBottom>
+            Exposure Gain
+          </Typography>
+          <Slider 
+            value={value} 
+            aria-labelledby="continuous-slider" 
+          />
+
+          <Typography id="non-linear-slider" gutterBottom>
+            White Balance Temperature
+          </Typography>
+          <Slider 
+            value={value} 
+            aria-labelledby="continuous-slider" 
+          />
+
+          <Typography id="non-linear-slider" gutterBottom>
+            White Balance Tint
+          </Typography>
+          <Slider 
+            value={value} 
+            aria-labelledby="continuous-slider" 
+          />
+
+
+          <Button color="primary" variant="contained">Submit</Button>
+        </Grid>
       </Paper>
     )
   }

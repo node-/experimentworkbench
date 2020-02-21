@@ -2,6 +2,11 @@
 
 import cv2
 import numpy
+import time
+import Amscope
+
+from contextlib import contextmanager
+
 
 class CameraError(Exception):
     """Camera error."""
@@ -13,6 +18,7 @@ class CameraDeactivatedError(CameraError):
     """Camera is not activated."""
 
 class AbstractCamera(object):
+    is_active = False
     """This Abstract class defines the interface for a generic camera."""
     def __init__(self, device, name):
         raise NotImplementedError
@@ -28,6 +34,14 @@ class AbstractCamera(object):
 
     def deactivate(self):
         return
+    
+    @contextmanager
+    def open(self):
+        try:
+            self.activate()
+            yield self
+        finally:
+            self.deactivate()
 
     def show_frame(self, title, scale=80.0):
         """
@@ -74,27 +88,28 @@ class AbstractCamera(object):
 class AmscopeCamera(AbstractCamera):
     """Camera class impl for the Amscope cameras, which have more camera settings than webcams."""
     def __init__(self, device, name, fullRes=False):
-        import Amscope
         self.rotation = 0
         self.device = device
         self.capture = None
+        self.is_active = False
         if not fullRes:
             self.resolution = 1
         else:
             self.resolution = 0
 
     def activate(self):
-        #print "activating camera " + str(self.device)
-        if self.capture:
-            self.deactivate()
+        if self.is_active:
+            return
         self.capture = self.open_cam(self.device)
         self.capture.set_auto_exposure_enabled(False)
+        self.is_active = True
 
     def deactivate(self):
         #print "deactivating camera " + str(self.device)
         if self.capture:
             self.capture.close()
         self.capture = None
+        self.is_active = False
 
     def open_cam(self, device):
         cap = Amscope.ToupCamCamera(camIndex=device, resolution=self.resolution)
@@ -152,7 +167,10 @@ class WebCamera(AbstractCamera):
             self.capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
 
     def get_frame(self):
-        frame = self.rotate_bound(self.capture.read()[1], self.rotation)
+        frame = self.capture.read()[1]
+        if type(frame) == None:
+            return
+        frame = self.rotate_bound(frame, self.rotation)
         return frame
 
     def set_brightness(self, value):
