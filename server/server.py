@@ -77,6 +77,7 @@ async def manage_cameras():
     while True:
         await mgmt.loop()
         await sio.emit('device_update', {'devices': mgmt.devices})
+        await sio.emit('device_settings', {'settings': mgmt.get_all_camera_settings()})
         #await sio.emit('response', {'data': 'Server Heartbeat: %d' % count})
         if mgmt.has_frame():
             await sio.emit('frame', {'data' : None, 'update' : True})

@@ -92,7 +92,7 @@ class CameraManager():
     #new_devices = [{'name' : "test", 'id' : 0, 'type': 'amscope'}]
     new_devices = [
         {'name' : "foo", 'id' : 0, 'type': 'amscope'},
-        {'name' : "bar", 'id' : 1, 'type': 'amscope'},
+        #{'name' : "bar", 'id' : 1, 'type': 'amscope'},
     ]
 
     def __init__(self):
@@ -125,6 +125,9 @@ class CameraManager():
     def set_device(self, device_id, settings):
         print(settings)
         self.cameras[device_id].settings = settings
+
+    def get_all_camera_settings(self):
+        return {k: v.settings for (k, v) in self.cameras.items()}
 
     def deactivate_all_cams_except(self, camera):
         for v in self.cameras.values():

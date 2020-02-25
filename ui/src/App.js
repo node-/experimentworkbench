@@ -68,12 +68,14 @@ class App extends React.PureComponent {
     frame: false,
     new_frame: false,
     devices: [],
-    currentlySelectedDeviceId: false,
+    currentlySelectedDeviceId: undefined,
+    currentlyChangingSettings: false,
     cameraSettings: {
       exposure : 0,
       gain : 0,
       temp : 0,
-      tint : 0
+      tint : 0,
+      rotation: 0
     },
   }
 
@@ -92,14 +94,22 @@ class App extends React.PureComponent {
     })
 
     socket.on("device_update", data => this.setState({devices: data.devices}))
-    //socket.on("device_update", data => console.log(data.devices));
+
+    socket.on("device_settings", data => {
+      if (this.state.currentlySelectedDeviceId === undefined || this.state.currentlyChangingSettings) {
+        return
+      }
+      this.setState({cameraSettings: data.settings[this.state.currentlySelectedDeviceId]})
+    })
+
     socket.on('connect', () => {
       this.setState({connected: socket.connected})
-    });
+    })
 
     socket.on('disconnect', () => {
       this.setState({connected: socket.connected})
-    });
+    })
+
   }
 
   handleRemoveDevice = (device) => {
@@ -175,11 +185,12 @@ class App extends React.PureComponent {
     })
   }
 
-  handleConfigureCamera = name => event => {
+  handleConfigureCamera = name => (event, value) => {
     this.setState({
+      currentlyChangingSettings: true,
       cameraSettings: {
         ...this.state.cameraSettings,
-      [name]: event.target.value
+      [name]: value
       }
     })
   }
@@ -366,8 +377,8 @@ class App extends React.PureComponent {
           indicatorColor="primary"
           textColor="primary"
         >
-          <Tab label="Viewport 0" />
-          <Tab label="Viewport 1" />
+          <Tab label="Selected Camera" />
+          <Tab label="Slideshow" />
         </Tabs>
         {
           tab_viewport === 0 && this.renderVideo()
@@ -414,80 +425,55 @@ class App extends React.PureComponent {
     )
   }
 
+  renderCameraConfigElement = (config_type, title, min, max) => {
+    const { classes } = this.props
+    return (
+      <Grid item >
+        <Typography id="non-linear-slider" gutterBottom>
+          {title}
+        </Typography>
+        <Slider
+          onChange={this.handleConfigureCamera(config_type)}
+          value={this.state.cameraSettings[config_type]} 
+          aria-labelledby="continuous-slider" 
+          max={max}
+          min={min}
+        />
+        <TextField
+          variant="outlined"
+          type="number"
+          value={this.state.cameraSettings[config_type]}
+          onChange={this.handleConfigureCamera(config_type)}
+        />
+      </Grid>
+    )
+  }
+
   renderCameraConfig = () => {
     const { classes } = this.props
-    const { currentlySelectedDeviceId } = this.state
-    var value = 0;
-
-    // todo: curry
-    // onChange={handleCamConfigChange("exposure")}
 
     return (
       <Paper className={classes.configWrapper}>
-        <Grid item>
-          <Typography id="non-linear-slider" gutterBottom>
-            Exposure Time
-          </Typography>
-          <Slider 
-            onChange={this.handleConfigureCamera("exposure")}
-            value={this.state.cameraSettings.exposure} 
-            aria-labelledby="continuous-slider" 
-            max={2000000}
-            min={400}
-          />
+        <Grid container justify="center">
+          {this.renderCameraConfigElement("exposure", "Exposure Time", 400, 2000000)}
 
-          <Typography id="non-linear-slider" gutterBottom>
-            Exposure Gain
-          </Typography>
-          <Slider 
-            onChange={this.handleConfigureCamera("gain")}
-            value={this.state.cameraSettings.gain} 
-            aria-labelledby="continuous-slider" 
-            max={300}
-            min={100}
-          />
+          {this.renderCameraConfigElement("gain", "Exposure Gain", 100, 300)}
 
-          <Typography id="non-linear-slider" gutterBottom>
-            White Balance Temperature
-          </Typography>
-          <Slider 
-            onChange={this.handleConfigureCamera("temp")}
-            value={this.state.cameraSettings.temp} 
-            aria-labelledby="continuous-slider" 
-            max={15000}
-            min={2000}
-          />
+          {this.renderCameraConfigElement("temp", "WB Temperature", 2000, 15000)}
 
-          <Typography id="non-linear-slider" gutterBottom>
-            White Balance Tint
-          </Typography>
-          <Slider 
-            onChange={this.handleConfigureCamera("tint")}
-            value={this.state.cameraSettings.tint} 
-            aria-labelledby="continuous-slider" 
-            max={2500}
-            min={200}
-          />
+          {this.renderCameraConfigElement("tint", "WB Tint", 200, 2500)}
 
-          <Typography id="non-linear-slider" gutterBottom>
-            Rotation
-          </Typography>
-          <Slider 
-            onChange={this.handleConfigureCamera("rotation")}
-            value={this.state.cameraSettings.rotation} 
-            aria-labelledby="continuous-slider" 
-            max={360}
-            min={0}
-          />
+          {this.renderCameraConfigElement("rotation", "Rotation", 0, 360)}
 
-
+          <Grid item>
           <Button 
+            style={{margin: '1em'}}
             color="primary" 
             variant="contained"
             disabled={this.state.submitting}
             onClick={this.handleCameraConfigSubmit}
-            fullWidth 
           >Submit</Button>
+          </Grid>
         </Grid>
       </Paper>
     )
