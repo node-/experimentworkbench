@@ -69,6 +69,12 @@ class App extends React.PureComponent {
     new_frame: false,
     devices: [],
     currentlySelectedDeviceId: false,
+    cameraSettings: {
+      exposure : 0,
+      gain : 0,
+      temp : 0,
+      tint : 0
+    },
   }
 
   componentDidMount() {
@@ -98,6 +104,25 @@ class App extends React.PureComponent {
 
   handleRemoveDevice = (device) => {
     //console.log(device);
+  }
+
+  handleCameraConfigSubmit = () => {
+    this.setState({
+      submitting: true
+    })
+    var set_device_url = "http://" + document.domain + ":3005/set_device/" + this.state.currentlySelectedDeviceId
+    console.log(this.state.cameraSettings)
+    axios.post(set_device_url, this.state.cameraSettings).then(response => {
+      this.setState({
+        submitting: false
+      })
+    })
+    .catch(err => {
+      console.log(err)
+      this.setState({
+        submitting: false
+      })
+    })
   }
 
   handleConfigSubmit = () => {
@@ -145,6 +170,15 @@ class App extends React.PureComponent {
     this.setState({
       newDevice: {
         ...this.state.newDevice,
+      [name]: event.target.value
+      }
+    })
+  }
+
+  handleConfigureCamera = name => event => {
+    this.setState({
+      cameraSettings: {
+        ...this.state.cameraSettings,
       [name]: event.target.value
       }
     })
@@ -321,7 +355,7 @@ class App extends React.PureComponent {
     })
   }
 
-  renderViewportSelect = () => {
+  renderViewport = () => {
     const { tab_viewport } = this.state
     return (
       <div>
@@ -339,7 +373,7 @@ class App extends React.PureComponent {
           tab_viewport === 0 && this.renderVideo()
         }
         {
-          tab_viewport === 1
+          tab_viewport === 1 && this.renderVideo()
         }
       </div>
     )
@@ -375,13 +409,9 @@ class App extends React.PureComponent {
     const color = connected ? "primary" : "secondary";
     return (
         <Grid item xs>
-          <Button color={color} variant="contained">{text}</Button>
+          <Button color={color} variant="contained" fullWidth>{text}</Button>
         </Grid>
     )
-  }
-
-  handleCamConfigChange = name => event => {
-
   }
 
   renderCameraConfig = () => {
@@ -392,7 +422,6 @@ class App extends React.PureComponent {
     // todo: curry
     // onChange={handleCamConfigChange("exposure")}
 
-    
     return (
       <Paper className={classes.configWrapper}>
         <Grid item>
@@ -400,36 +429,65 @@ class App extends React.PureComponent {
             Exposure Time
           </Typography>
           <Slider 
-            value={value} 
+            onChange={this.handleConfigureCamera("exposure")}
+            value={this.state.cameraSettings.exposure} 
             aria-labelledby="continuous-slider" 
+            max={2000000}
+            min={400}
           />
 
           <Typography id="non-linear-slider" gutterBottom>
             Exposure Gain
           </Typography>
           <Slider 
-            value={value} 
+            onChange={this.handleConfigureCamera("gain")}
+            value={this.state.cameraSettings.gain} 
             aria-labelledby="continuous-slider" 
+            max={300}
+            min={100}
           />
 
           <Typography id="non-linear-slider" gutterBottom>
             White Balance Temperature
           </Typography>
           <Slider 
-            value={value} 
+            onChange={this.handleConfigureCamera("temp")}
+            value={this.state.cameraSettings.temp} 
             aria-labelledby="continuous-slider" 
+            max={15000}
+            min={2000}
           />
 
           <Typography id="non-linear-slider" gutterBottom>
             White Balance Tint
           </Typography>
           <Slider 
-            value={value} 
+            onChange={this.handleConfigureCamera("tint")}
+            value={this.state.cameraSettings.tint} 
             aria-labelledby="continuous-slider" 
+            max={2500}
+            min={200}
+          />
+
+          <Typography id="non-linear-slider" gutterBottom>
+            Rotation
+          </Typography>
+          <Slider 
+            onChange={this.handleConfigureCamera("rotation")}
+            value={this.state.cameraSettings.rotation} 
+            aria-labelledby="continuous-slider" 
+            max={360}
+            min={0}
           />
 
 
-          <Button color="primary" variant="contained">Submit</Button>
+          <Button 
+            color="primary" 
+            variant="contained"
+            disabled={this.state.submitting}
+            onClick={this.handleCameraConfigSubmit}
+            fullWidth 
+          >Submit</Button>
         </Grid>
       </Paper>
     )
@@ -442,8 +500,7 @@ class App extends React.PureComponent {
         <header className="App-header">
           <Grid container>
             <Grid item xs={12} md={8}>
-              {this.renderViewportSelect()}
-              {this.renderVideo()}
+              {this.renderViewport()}
             </Grid>
             <Grid item xs={12} md={4}>
               {this.renderMenu()}

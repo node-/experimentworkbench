@@ -4,9 +4,7 @@ import cv2
 import numpy
 import time
 import Amscope
-
 from contextlib import contextmanager
-
 
 class CameraError(Exception):
     """Camera error."""
@@ -20,7 +18,7 @@ class CameraDeactivatedError(CameraError):
 class AbstractCamera(object):
     is_active = False
     """This Abstract class defines the interface for a generic camera."""
-    def __init__(self, device, name):
+    def __init__(self, device, name, camerasettings):
         raise NotImplementedError
 
     def __enter__(self):
@@ -29,10 +27,14 @@ class AbstractCamera(object):
     def __exit__(self, type, value, traceback):
         self.close()
 
+
     def activate(self):
+        self.get_frame()
+        self.is_active = True
         return
 
     def deactivate(self):
+        self.is_active = False
         return
     
     @contextmanager
@@ -87,9 +89,10 @@ class AbstractCamera(object):
 
 class AmscopeCamera(AbstractCamera):
     """Camera class impl for the Amscope cameras, which have more camera settings than webcams."""
-    def __init__(self, device, name, fullRes=False):
+    def __init__(self, device, name, fullRes=False, camerasettings=None):
         self.rotation = 0
         self.device = device
+        self.settings = camerasettings
         self.capture = None
         self.is_active = False
         if not fullRes:
@@ -156,9 +159,10 @@ class AmscopeCamera(AbstractCamera):
         self.deactivate()
 
 
+
 class WebCamera(AbstractCamera):
     """Camera class impl for webcams that are supported by OpenCV3."""
-    def __init__(self, device, name, fullRes=True):
+    def __init__(self, device, name, fullRes=True, camerasettings=None):
         self.rotation = 0
         self.device = device
         self.capture = cv2.VideoCapture(device)

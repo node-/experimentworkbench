@@ -178,7 +178,7 @@ class ToupCamCamera(object):
 
     def _lib_get_func(self, func):
         v = ctypes.c_int()
-        if self._lib_func('get_{}'.format(func), ctypes.byref(v)):
+        if self._lib_func('{}'.format(func), ctypes.byref(v)):
             return v.value
 
     def set_gamma(self, v):
@@ -237,7 +237,7 @@ class ToupCamCamera(object):
         self._lib_func('put_ExpoAGain', ctypes.c_ushort(v))
 
     def get_exposure_gain(self):
-        self._lib_get_func('get_ExpoAGain')
+        return self._lib_get_func('get_ExpoAGain')
 
     # todo: write these functions
     # toupcam_ports(HRESULT)  Toupcam_get_ExpoTime(HToupCam h, unsigned* Time); /* in microseconds */
