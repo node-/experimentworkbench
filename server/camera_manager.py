@@ -9,13 +9,17 @@ nest_asyncio.apply()
 import cv2
 import os
 import time
+import json
+
 from datetime import datetime
 from camera import *
 
 #import yaml
 #from base64 import b64encodea import WebCamera, AmscopeCamera
 
-amscope_settings_range = {
+CONFIG_JSON = "config.json"
+
+AMSCOPE_SETTINGS_RANGE = {
     "exposure" : (400, 2000000),
     "gain" : (100, 300),
     "temp" : (2000, 15000),
@@ -38,31 +42,77 @@ class Timer:
 
 class GlobalConfig():
     default = {
-        "outputPath" : r"C:\Users\kosberg\code\experimentworkbench\test",
-        "intervalTime" : 10,
-        "timelapseEnabled": True
+        "outputPath" : "",
+        "intervalTime" : 300,
+        "timelapseEnabled": False
     }
+    json = ""
 
     settings = default
-    def __init__(self, database):
-        pass
+    _init_done = False
 
-    def set(self, new):
-        print(new)
-        self.settings = new
+    def __init__(self, db_path):
+        self.db_path = db_path
+        try:
+            with open(self.db_path, "r") as cfg:
+                self.json = json.loads(cfg.read())
+                self.settings = self.json
+                print("Loaded %s " % self.db_path)
+        except (IOError, json.decoder.JSONDecodeError) as e:
+            print("Error loading config, will overwrite: %s" % e)
+            self.json = self.default
+        self._init_done = True
 
+    def set_camera_settings(self, settings):
+        self.settings["cameras"] = settings
+        #self.format_settings_json(settings)
+
+    def save(self):
+        if not self._init_done:
+            return False
+        #self.format_settings_json(self.settings)
+        with open(self.db_path, "w+") as cfg:
+            #print(self.json)
+            #print(json.dumps(self.json, indent=4, sort_keys=True))
+            #cfg.write("test")
+            cfg.write(json.dumps(self.json, indent=4, sort_keys=True))
+            print("Saved config to %s " % self.db_path)
+
+
+"""
+    def format_settings_json(self, settings):
+        print(settings)
+        print(self.json)
+        for camera, params in settings.items():
+            for k, v in params.items():
+                self.json["cameras"][camera][k] = str(v)
+
+"""
 
 # temporary helper functions
 def get_amscope_settings(camera):
     camera.activate()
     temp, tint = camera.capture.get_temperature_tint()
     settings = {
+        "id" : camera.device,
+        "name" : camera.name,
         "exposure" : camera.capture.get_exposure_time(),
         "gain" : camera.capture.get_exposure_gain(),
         "temp" : temp,
         "tint" : tint,
         "rotation" : 0,
-        "serial" : camera.capture.get_serial()
+        "serial" : str(camera.capture.get_serial())
+    }
+    return settings
+
+def get_webcam_settings(camera):
+    settings = {
+        "exposure" : camera.capture.get(cv2.CAP_PROP_EXPOSURE),
+        "gain" : camera.capture.get(cv2.CAP_PROP_GAIN),
+        "temp" : False,
+        "tint" : False,
+        "rotation" : 0,
+        "serial" : ""
     }
     return settings
 
@@ -76,7 +126,7 @@ def create_path_if_not_exist(path):
 
 
 class CameraManager():
-    config = GlobalConfig("test")
+    config = GlobalConfig(CONFIG_JSON)
     devices = []
     cameras = {}
     frames = {}
@@ -96,17 +146,18 @@ class CameraManager():
     ]
 
     def __init__(self):
-        """
-        with open(yml_cfg, 'r') as stream:
-            try:
-                print(yaml.safe_load(stream))
-            except yaml.YAMLError as exc:
-                print(exc)
-        """
         pass
 
     def has_frame(self):
         return type(self._frame) != None
+
+    def get_settings_from_serial(self, serial):
+        print(self.config.settings["cameras"])
+        for cid, settings in self.config.settings["cameras"].items():
+            if not settings:
+                return
+            if serial in settings["serial"]:
+                return self.cameras[int(cid)].settings
 
     def add_device(self, d):
         print("Adding device: %s" % d)
@@ -115,15 +166,23 @@ class CameraManager():
         self.cameras[d['id']] = c
         self.devices.append(d)
         self.frames_jpg[d['id']] = None
-
+        
         assert(Camera == AmscopeCamera)
-        c.settings = get_amscope_settings(c)
-        print(c.settings)
-        if not c.is_active:
-            return False
+        c.activate()
+        if s := self.get_settings_from_serial(str(c.capture.get_serial())):
+            print("Found camera! %s" % s)
+            c.settings = s
+            print(s)
+        else:
+            c.settings = get_amscope_settings(c)
+        #print(c.settings)
+        c.type = "amscope"
+        self.apply_settings(c)
+
+        #c.settings = get_webcam_settings(c)
+
 
     def set_device(self, device_id, settings):
-        print(settings)
         self.cameras[device_id].settings = settings
 
     def get_all_camera_settings(self):
@@ -135,6 +194,8 @@ class CameraManager():
                 v.deactivate()
 
     def apply_settings(self, camera):
+        self.config.set_camera_settings(self.get_all_camera_settings())
+        print(camera.settings)
         camera.set_temp_tint(
             camera.settings["temp"],
             camera.settings["tint"]
@@ -143,6 +204,8 @@ class CameraManager():
         camera.set_exposure(camera.settings["exposure"])
         camera.set_gain(camera.settings["gain"])
         camera.set_rotation(camera.settings["rotation"])
+
+
 
     def pull_image(self, d, camera):
         self._frame = None
@@ -190,7 +253,8 @@ class CameraManager():
         if self.config.settings["timelapseEnabled"]:
             self.start_timelapse_timer()
         else:
-            self._timer.cancel()
+            if self._timer:
+                self._timer.cancel()
             self._timer = None
 
         self.errors = []
@@ -201,9 +265,8 @@ class CameraManager():
         
         # freeze _should_snap incase it changes while looping thru devices
         should_snap = self._should_snap
-        
         for d in self.devices:
-            camera = self.cameras[d['id']]           
+            camera = self.cameras[d['id']]
             self.deactivate_all_cams_except(camera)
             camera.activate()
             self.apply_settings(camera)
@@ -214,6 +277,7 @@ class CameraManager():
 
         if should_snap:
             self._should_snap = False
+        self.config.save()
 
 
 

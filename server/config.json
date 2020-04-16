@@ -1,0 +1,17 @@
+{
+    "cameras": {
+        "0": {
+            "exposure": 85000,
+            "gain": 100,
+            "id": 0,
+            "name": "foo",
+            "rotation": 0,
+            "serial": "b'TP160725152909DC3CBDA4E66E4D58D'",
+            "temp": 6503,
+            "tint": 1000
+        }
+    },
+    "intervalTime": 300,
+    "outputPath": "",
+    "timelapseEnabled": false
+}

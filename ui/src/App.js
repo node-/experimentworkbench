@@ -61,15 +61,12 @@ class App extends React.PureComponent {
       type: ""
     },
     addingDeviceDialog: false,
-
-    // global config
-    intervalTime: "",
-    outputPath: "",
     frame: false,
     new_frame: false,
     devices: [],
     currentlySelectedDeviceId: undefined,
     currentlyChangingSettings: false,
+    currentlyChangingConfig: false,
     cameraSettings: {
       exposure : 0,
       gain : 0,
@@ -77,6 +74,11 @@ class App extends React.PureComponent {
       tint : 0,
       rotation: 0
     },
+    config: {
+      "outputPath" : "",
+      "intervalTime" : 10,
+      "timelapseEnabled": false
+  }
   }
 
   componentDidMount() {
@@ -100,6 +102,13 @@ class App extends React.PureComponent {
         return
       }
       this.setState({cameraSettings: data.settings[this.state.currentlySelectedDeviceId]})
+    })
+
+    socket.on("global_config", data => {
+      if (this.state.currentlyChangingConfig) {
+        return
+      }
+      this.setState({config: data})
     })
 
     socket.on('connect', () => {
@@ -141,8 +150,8 @@ class App extends React.PureComponent {
     })
     axios.post('http://localhost:3005/config', 
       {
-        outputPath: this.state.outputPath,
-        intervalTime: this.state.intervalTime,
+        outputPath: this.state.config.outputPath,
+        intervalTime: this.state.config.intervalTime,
       }
     )
     .then(response => {
@@ -197,6 +206,7 @@ class App extends React.PureComponent {
 
   handleTextChange = name => event => {
     this.setState({
+      currentlyChangingConfig: true,
       [name]: event.target.value
     })
   }
@@ -279,7 +289,7 @@ class App extends React.PureComponent {
             <TextField
               variant="outlined"
               fullWidth
-              value={this.state.outputPath}
+              value={this.state.config.outputPath}
               onChange={this.handleTextChange('outputPath')}
             />
             <Typography align="left" variant="caption">Interval Time in Seconds</Typography>
@@ -287,7 +297,7 @@ class App extends React.PureComponent {
               variant="outlined"
               fullWidth
               type="number"
-              value={this.state.intervalTime}
+              value={this.state.config.intervalTime}
               onChange={this.handleTextChange('intervalTime')}
             />
             <Button 

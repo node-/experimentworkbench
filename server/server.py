@@ -13,7 +13,7 @@ import socketio
 import json
 import time
 
-from camera_manager import CameraManager, amscope_settings_range
+from camera_manager import CameraManager
 
 mgmt = CameraManager()
 
@@ -53,14 +53,20 @@ async def add_device(request):
 async def get_frame(request):
     try:
         device_id = int(request.match_info.get('id', '0'))
-        return web.Response(body=mgmt.frames_jpg[device_id], content_type='image/png')
+        return web.Response(
+            body=mgmt.frames_jpg[device_id], 
+            content_type='image/png'
+        )
     except Exception as e:
         return web.Response(body=str(e))
 
 async def get_device_settings(request):
     try:
         device_id = int(request.match_info.get('id', '0'))
-        return web.Response(body=json.dumps(mgmt.cameras[device_id].settings), content_type='application/json')
+        return web.Response(
+            body=json.dumps(mgmt.cameras[device_id].settings), 
+            content_type='application/json'
+        )
     except Exception as e:
         return web.Response(body=str(e))
 
@@ -78,13 +84,15 @@ async def manage_cameras():
         await mgmt.loop()
         await sio.emit('device_update', {'devices': mgmt.devices})
         await sio.emit('device_settings', {'settings': mgmt.get_all_camera_settings()})
+        await sio.emit('global_config', {'config': mgmt.config.settings})
         #await sio.emit('response', {'data': 'Server Heartbeat: %d' % count})
         if mgmt.has_frame():
             await sio.emit('frame', {'data' : None, 'update' : True})
         if len(mgmt.errors):
             await sio.emit('error', {'error' : mgmt.errors})
-        await sio.sleep(1)
+        await sio.sleep(2)
         count += 1
+
 
 
 cors.add(app.router.add_post('/config', set_config))
@@ -96,6 +104,7 @@ app.router.add_get('/settings/{id}', get_device_settings)
 
 async def main():
     sio.start_background_task(manage_cameras)
+    #sio.start_background_task(log_and_save)
     web.run_app(app, port=3005)
 
 if __name__ == '__main__':
@@ -104,6 +113,7 @@ if __name__ == '__main__':
     try:
         loop.run_until_complete(main())
     finally:
+        print("Shutting down")
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
 

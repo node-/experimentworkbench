@@ -62,6 +62,9 @@ class AbstractCamera(object):
     def set_rotation(self, value):
         self.rotation = value
 
+    def set_temp_tint(self, temp, tint):
+        pass
+
     def rotate_bound(self, image, angle):
         # grab the dimensions of the image and then determine the
         # center
@@ -92,6 +95,7 @@ class AmscopeCamera(AbstractCamera):
     def __init__(self, device, name, fullRes=False, camerasettings=None):
         self.rotation = 0
         self.device = device
+        self.name = name
         self.settings = camerasettings
         self.capture = None
         self.is_active = False
